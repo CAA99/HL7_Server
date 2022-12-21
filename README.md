@@ -43,7 +43,6 @@ Email: cristian.archila00@gmail.com
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-Este es un script de Python que implementa un servidor de sockets que escucha conexiones entrantes en un host y puerto específicos. El servidor recibe mensajes HL7 de dispositivos cliente, procesa los mensajes y envía una respuesta de vuelta al cliente.
 
 # Servidor HL7
 
@@ -85,3 +84,6 @@ GitHub: CAA99
 
 Email: cristian.archila00@gmail.com
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
