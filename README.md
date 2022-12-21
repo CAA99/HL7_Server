@@ -1,5 +1,3 @@
-This is a Python script that implements a socket server that listens for incoming connections on a specific host and port. The server receives HL7 messages from client devices, processes the messages, and sends a response back to the client.
-
 # HL7 Server
 
 This is a Python script that implements a socket server that listens for incoming connections on a specific host and port. The server receives HL7 messages from client devices, processes the messages, and sends a response back to the client.
