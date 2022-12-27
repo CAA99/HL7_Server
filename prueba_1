@@ -1,0 +1,193 @@
+
+
+import socket
+import threading
+import time
+import hl7
+import requests
+import sys
+import mysql.connector
+
+
+from concurrent.futures import thread
+from mysql.connector import errorcode
+from time import localtime, asctime
+from datetime import datetime
+from random import randrange
+
+'''Fin Importacion de librerias y modulos'''
+global _columns
+global _values
+print('iniciando')
+HEADER = 5000000
+#HOST = "192.168.1.245"
+HOST = '192.168.80.20'
+PORT = 22222
+ADDR = (HOST,PORT)
+FORMAT = 'utf-8'
+hl7_wtt = []
+ip_acc = '10.200.16.239'
+URL = 'http://192.168.80.24:8000/sem/api/v1/core/dispositivo/dato/'
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind(ADDR)
+
+global texto
+#global texto_1
+x = [0]
+y = [0]
+
+def bd(_columns, _values):
+    try: 
+        start = time.perf_counter()
+        mydb = mysql.connector.MySQLConnection(
+            host='localhost',
+            user= 'admin_monitores', 
+            password= 'perezosos',
+            database='monitores',
+        )
+        cursor = mydb.cursor()
+        sql = "INSERT INTO monitores (ip ,id, msg, time, estado) VALUES (%s, %s, %s, %s, %s)"
+        sql = "INSERT INTO %s ( %s ) VALUES ( %s );" % ('ambulancias', _columns, _values)
+        cursor.execute(sql)
+        #print(sql)
+        end = time.perf_counter()
+        #print(f'tiempo de insercion en base de datos {end - start}\n')
+        mydb.commit()
+        cursor.close()
+        mydb.close()
+    except mysql.connector.Error as err:
+        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+            print("Usuario Ã³ ContraseÃ±a incorrectos")
+        elif err.errno == errorcode.ER_BAD_DB_ERROR:
+            print("La base de datos no existe")
+        else:
+            print(err)
+    else:
+        mydb.close()
+
+def handle_client(conn, addr):
+    print(f"[Nueva Conexion] {addr}")
+    contador = 0
+    texto = ""
+    while True:
+        try:
+            msg = conn.recv(HEADER)
+            
+            if  msg:
+#                tiempo = asctime(localtime())
+                #print(f'Mensaje desde {addr} {tiempo}:\n')
+                start = time.perf_counter()
+
+                msg = msg.decode('utf-8')
+                if msg[1:4] == 'MSH':
+                    if contador > 0:
+                        print(texto)
+                        contador = 0
+                    texto = msg
+
+                    print('entra al if')
+                else:
+                    texto += msg
+                    contador += 1 
+                end = time.perf_counter()
+                print(f'tiempo \n')
+
+#                tiempo = asctime(localtime())
+#                dt = datetime.now()
+
+#                mensaje = {
+#                    'ip': addr[0],
+#                    'id' : 'dispositivo1',
+#                    'msg' : msg,
+#                    'time': dt,
+#                }
+
+#                 HTTP = requests.post(URL, data=mensaje)
+#                 print(HTTP)
+#                 if HTTP.status_code == 200:
+#                     print('ok')
+#                     estado = 1
+#                 else:
+#                     estado = 0
+#                estado = 0
+#                mensaje = {
+#                    'ip': addr[0],
+#                    'id' : 'dispositivo1',
+#                    'msg' : msg,
+#                    'time': dt,
+#                    'estado': estado
+#                }
+
+#                _columns = ', '.join("`" + str(x).replace('/', '_') + "`" for x in mensaje.keys())
+#                _values = ', '.join("'" + str(x).replace('/', '_') + "'" for x in mensaje.values())
+#                bd(_columns, _values)
+#
+                #filtrado_msg(msg)
+#                conn.send(respuestaHL7(msg))
+                
+        except TimeoutError as a :
+            print('conexion cerrada')
+            print(a)
+            thread.exit()
+        except ConnectionAbortedError as e:
+            pass
+        except ConnectionError as e:
+            pass
+
+def respuestaHL7(hl7_msg):
+    try:
+        msg = hl7.parse(hl7_msg)
+        #print(f'\nMensaje HL7 desde monitor:\n {msg}'.replace('\r', '\n'))
+        msg_respuesta = msg.create_ack()
+        hl7_wtt.append(msg_respuesta)
+        _convert = ''.join([str(item) for item in hl7_wtt]).encode('utf-8')
+        msg_respuesta = b'\x0b' + bytes(_convert) + b'\x1c\r'
+        hl7_wtt.clear()
+        #print (f'Respuesta\n: {msg_respuesta}')
+        return msg_respuesta
+    except hl7.exceptions.ParseException as e: 
+        print(e)
+
+def filtrado_msg(msg):
+    
+    #print('Filtrado de mensaje: \n')
+    msg = hl7.parse(msg)
+    obx = msg['OBX'][0][5][0]
+    
+    print(f'filtrado de OBX: {obx}')
+    #print(type(obx))
+    obx_str = []
+    obx_str = obx.split(',')
+    #print(obx_str)
+    #print('-----------')
+    for i in obx_str:
+        if i == "":
+            pass
+        else:
+            y.append(int(i))
+    #print('-----------')
+    #print(y)
+    lista = pd.DataFrame(y)
+    lista.to_csv('lista.csv', header=False, index=False, mode='a')
+    y.clear()
+    
+def start_server():
+    
+    server.listen()
+    while True:
+        try:
+            conn, addr = server.accept()
+            if addr[0] == ip_acc or '192.168.80.21':
+                thread = threading.Thread(target=handle_client, args=(conn, addr)) #cuando una nueva conexion ocurra, se va a pasar esa conexion a la funcion handle_client, con los argumentos que le pasamos a la funcion conn, addr
+                thread.start()
+                print(f"[Conexiones Activas] {threading.active_count() - 1}") #Nos muestra la conexion y cuantos threads estan activos en este proceso de python, esto nos representa cuantos clientes estan conectados al servidor, por que creamos uno thread para cada nueva coenxion 
+            else:
+                print(f'La direccion IP no es la esperada {addr[0]}, la IP esperada es {ip_acc}')
+                thread.exit()
+        except (KeyboardInterrupt, SystemExit):
+            print('Proceso Interrumpido')
+            sys.exit()        
+
+
+if __name__ == "__main__":
+    start_server()
